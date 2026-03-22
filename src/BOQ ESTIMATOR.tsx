@@ -2,11 +2,11 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// --- 1. DATA HUB: LOGIC & SPECS ---
+// --- 1. DATA HUB: SPECS & ENGINEERING LOGIC ---
 const ENG_LOGIC = { cement: 0.42, steel: 4.0, sand: 1.8, aggregate: 1.35, bricks: 22, paint: 0.25, tiles: 1.1 };
 
-// FULL CONSOLIDATED DATABASE (29 ITEMS FROM YOUR IMAGE)
-const FULL_MATERIAL_DATABASE = [
+// FULL CONSOLIDATED DATABASE (29 ITEMS FROM IMAGE)
+const IMAGE_MATERIAL_LIST = [
   { item: "Sand", spec: "M-Sand & P-Sand", unit: "Cft", constant: ENG_LOGIC.sand },
   { item: "Brick", spec: "Chamber brick / Fly-Ash Brick (for Basement)", unit: "Nos", constant: ENG_LOGIC.bricks },
   { item: "Cement", spec: "Chettinad / Ramco Super Plast / UltraTech", unit: "Bags", constant: ENG_LOGIC.cement },
@@ -48,6 +48,7 @@ const QUOTATION_NOTES = [
 
 interface BOQItem { id: number; desc: string; qty: number; rate: number; unit: string; type: 'const' | 'extra'; }
 
+// --- 2. THE LAG-FIXER INPUT ---
 const FastInput = ({ value, onSave, type = "text", style, placeholder }: any) => {
   const [local, setLocal] = useState(value);
   useEffect(() => { setLocal(value); }, [value]);
@@ -83,6 +84,8 @@ export default function MasterProfessionalBOQ() {
     setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
   }, []);
 
+  const deleteItem = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
+
   const generatePDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
@@ -90,18 +93,18 @@ export default function MasterProfessionalBOQ() {
     
     doc.setFontSize(10);
     doc.text(`Location: ${location} | Date: ${projectDate}`, 14, 25);
-    doc.text(`Material Reference Area: ${builtArea} Sft`, 14, 30);
+    doc.text(`Reference Area for Materials: ${builtArea} Sft`, 14, 30);
 
     // TABLE 1: CONSTRUCTION COST
     autoTable(doc, {
       startY: 35,
-      head: [['Construction Work Description', 'Quantity', 'Rate', 'Amount']],
+      head: [['Description', 'Quantity', 'Rate', 'Amount']],
       body: items.filter(i => i.type === 'const').map(i => [i.desc, `${i.qty} ${i.unit}`, `Rs.${i.rate}`, `Rs.${(i.qty * i.rate).toLocaleString()}`]),
       foot: [['', '', 'CONSTRUCTION TOTAL', `Rs. ${totals.constructionTotal.toLocaleString()}`]],
       theme: 'grid', headStyles: { fillColor: [15, 23, 42] }
     });
 
-    // TABLE 2: NECESSARY EXPENSES
+    // TABLE 2: ADDITIONAL EXPENSES
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
       head: [['Necessary & Additional Expenses', 'Quantity', 'Rate', 'Amount']],
@@ -110,19 +113,19 @@ export default function MasterProfessionalBOQ() {
       theme: 'grid', headStyles: { fillColor: [100, 100, 100] }
     });
 
-    // TOTAL VALUE
-    const finalTotalY = (doc as any).lastAutoTable.finalY + 10;
+    // GRAND TOTAL SECTION - Error TS2552 Fixed here
+    const grandTotalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(14);
     doc.setTextColor(22, 163, 74);
-    doc.text(`GRAND TOTAL ESTIMATED VALUE: Rs. ${totals.grandTotal.toLocaleString()}`, 14, finalTotalTotalY);
+    doc.text(`GRAND TOTAL ESTIMATED VALUE: Rs. ${totals.grandTotal.toLocaleString()}`, 14, grandTotalTotalY);
 
     // TABLE 3: FULL 29 MATERIAL CONSUMPTION
-    const matRows = FULL_MATERIAL_DATABASE.map(m => [
+    const matRows = IMAGE_MATERIAL_LIST.map(m => [
       m.item, m.spec, m.constant > 0 ? `${Math.round(builtArea * m.constant)} ${m.unit}` : "As Required", "Included"
     ]);
 
     autoTable(doc, {
-      startY: finalTotalTotalY + 5,
+      startY: grandTotalY + 5,
       head: [[{ content: 'DETAILED MATERIAL SPECIFICATIONS (29 ITEMS)', colSpan: 4, styles: { halign: 'center' } }]],
       body: matRows,
       theme: 'striped', headStyles: { fillColor: [184, 134, 11] }
@@ -154,12 +157,13 @@ export default function MasterProfessionalBOQ() {
         </div>
         <div style={{ marginTop: '10px' }}><label style={miniLabel}>LOCATION</label><FastInput value={location} onSave={setLocation} style={detailInp} /></div>
         <div style={refAreaBox}>
-          <label style={labelStyle}>REFERENCE AREA FOR 29 MATERIALS (Sq.Ft)</label>
+          <label style={labelStyle}>MATERIAL REFERENCE AREA (Sq.Ft)</label>
           <FastInput type="number" value={builtArea} onSave={setBuiltArea} style={areaInput} />
         </div>
       </div>
 
       <div style={scrollArea}>
+        <h3 style={{ fontSize: '14px', padding: '0 5px 10px 5px', margin: 0 }}>Work Specifications & Expenses</h3>
         {items.map(item => (
           <div key={item.id} style={itemCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -177,10 +181,10 @@ export default function MasterProfessionalBOQ() {
 
       <div style={floatingFooter}>
         <div style={footerMain}>
-          <div><div style={miniLabel}>GRAND TOTAL</div><div style={totalVal}>₹ {totals.grandTotal.toLocaleString()}</div></div>
+          <div><div style={miniLabel}>TOTAL QUOTATION</div><div style={totalVal}>₹ {totals.grandTotal.toLocaleString()}</div></div>
           <button onClick={() => window.open(`https://wa.me/?text=Quotation for ${clientName}: ₹${totals.grandTotal.toLocaleString()}`)} style={waBtn}>SHARE</button>
         </div>
-        <button onClick={generatePDF} style={pdfBtn}>DOWNLOAD FULL REPORT 📄</button>
+        <button onClick={generatePDF} style={pdfBtn}>DOWNLOAD COMPLETE REPORT 📄</button>
       </div>
     </div>
   );
@@ -193,7 +197,7 @@ const cardStyle = { background: 'white', margin: '-20px 15px 15px 15px', padding
 const refAreaBox = { marginTop: '10px', padding: '10px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' };
 const grid2 = { display: 'flex', gap: '8px' };
 const f1 = { flex: 1 };
-const detailInp = { width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px', outline: 'none', boxSizing: 'border-box' as const };
+const detailInp = { width: '100%', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px', outline: 'none', boxSizing: 'border-box' as const };
 const areaInput = { width: '100%', padding: '10px', border: '2px solid #0369a1', borderRadius: '8px', fontSize: '20px', fontWeight: 'bold' as const, textAlign: 'center' as const };
 const labelStyle = { fontSize: '10px', color: '#64748b', fontWeight: 'bold' as const, display: 'block', marginBottom: '4px', textAlign: 'center' as const };
 const miniLabel = { fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' as const, textTransform: 'uppercase' as const };
