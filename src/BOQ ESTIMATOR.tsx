@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import jsPDF from 'jsPDF';
+// FIXED: Changed 'jsPDF' to 'jspdf' to solve Vercel build error
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // --- 1. ENGINEERING STANDARDS & IMAGE DATA ---
@@ -18,7 +19,7 @@ const MATERIAL_SPECS = [
   { item: "Maindoor", spec: "Teak Shutter", unit: "Nos", constant: 0 },
   { item: "Bedroom Doors", spec: "Readymade Skin Doors", unit: "Nos", constant: 0 },
   { item: "Hand Rail", spec: "Stainless Steel (ISI/ISO) JINDAL", unit: "Rft", constant: 0.15 },
-  { item: "Chemicals", spec: "Dr. Fixit, Bostik", unit: "LS", constant: 0 },
+  { item: "Chemicals", spec: "Dr. Fixit, Bostik, Building Doctor", unit: "LS", constant: 0 },
   { item: "Pest Protector", spec: "Terminator (Basement & Wood)", unit: "LS", constant: 0 },
   { item: "Terrace", spec: "Water Proofing (Asian Paints)", unit: "Sft", constant: 1 },
   { item: "Tiles", spec: "KAG, Millenium (55/Sft)", unit: "Sft", constant: ENG_LOGIC.tiles },
@@ -33,7 +34,6 @@ const MATERIAL_SPECS = [
 
 interface BOQItem { id: number; desc: string; qty: number; rate: number; unit: string; }
 
-// --- 2. THE LAG-FIXER: HIGH PERFORMANCE INPUT ---
 const FastInput = ({ value, onSave, type = "text", style, placeholder }: any) => {
   const [local, setLocal] = useState(value);
   useEffect(() => { setLocal(value); }, [value]);
@@ -85,7 +85,6 @@ export default function MasterBOQEstimator() {
     doc.text(`Location: ${location} | Date: ${projectDate}`, 14, 30);
     doc.text(`Total Area: ${builtArea} Sq.Ft`, 160, 25);
 
-    // Table 1: Cost Estimation
     autoTable(doc, {
       startY: 35,
       head: [['Work Description', 'Quantity', 'Rate', 'Amount']],
@@ -94,12 +93,8 @@ export default function MasterBOQEstimator() {
       theme: 'grid', headStyles: { fillColor: [15, 23, 42] }
     });
 
-    // Table 2: FULL MATERIAL BREAKDOWN (From Image 3)
     const matRows = MATERIAL_SPECS.map(m => [
-      m.item, 
-      m.spec, 
-      m.constant > 0 ? `${Math.round(builtArea * m.constant)} ${m.unit}` : "Standard", 
-      "Included"
+      m.item, m.spec, m.constant > 0 ? `${Math.round(builtArea * m.constant)} ${m.unit}` : "Standard", "Included"
     ]);
 
     autoTable(doc, {
@@ -113,7 +108,7 @@ export default function MasterBOQEstimator() {
   };
 
   const shareWhatsApp = () => {
-    const msg = `*UNIQ DESIGNS BOQ*\nClient: ${clientName}\nLocation: ${location}\nArea: ${builtArea} Sft\nTotal Budget: ₹${totals.cost.toLocaleString()}\n\n*Major Materials:*\n- Cement: ${Math.round(builtArea * 0.42)} Bags\n- Steel: ${Math.round(builtArea * 4)} Kgs`;
+    const msg = `*UNIQ DESIGNS BOQ*\nClient: ${clientName}\nArea: ${builtArea} Sft\nTotal Budget: ₹${totals.cost.toLocaleString()}\n\n*Material Breakdown:*\n- Cement: ${Math.round(builtArea * 0.42)} Bags\n- Steel: ${Math.round(builtArea * 4)} Kgs`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -180,7 +175,6 @@ export default function MasterBOQEstimator() {
   );
 }
 
-// --- CSS STYLING ---
 const containerStyle = { maxWidth: '500px', margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: '160px', fontFamily: 'sans-serif' };
 const headerStyle = { background: '#0f172a', color: 'white', padding: '25px 15px', textAlign: 'center' as const };
 const addBtn = { background: '#16a34a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' as const };
