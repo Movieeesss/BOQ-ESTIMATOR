@@ -2,10 +2,9 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// --- 1. DATA HUB: SPECS & ENGINEERING LOGIC ---
+// --- 1. DATA HUB: LOGIC & SPECS ---
 const ENG_LOGIC = { cement: 0.42, steel: 4.0, sand: 1.8, aggregate: 1.35, bricks: 22, paint: 0.25, tiles: 1.1 };
 
-// FULL CONSOLIDATED DATABASE (29 ITEMS FROM IMAGE)
 const IMAGE_MATERIAL_LIST = [
   { item: "Sand", spec: "M-Sand & P-Sand", unit: "Cft", constant: ENG_LOGIC.sand },
   { item: "Brick", spec: "Chamber brick / Fly-Ash Brick (for Basement)", unit: "Nos", constant: ENG_LOGIC.bricks },
@@ -87,10 +86,41 @@ export default function MasterProfessionalBOQ() {
     setItems(prev => prev.filter(i => i.id !== id));
   }, []);
 
+  // --- NEW WHATSAPP FEATURE WITH ALL PDF CONTENTS ---
+  const shareWhatsApp = () => {
+    let msg = `*QUOTATION FOR ${clientName.toUpperCase()}*\n`;
+    msg += `📍 Location: ${location}\n`;
+    msg += `📅 Date: ${projectDate}\n`;
+    msg += `📏 Material Ref Area: ${builtArea} Sft\n\n`;
+
+    msg += `*1. CONSTRUCTION WORK:*\n`;
+    items.filter(i => i.type === 'const').forEach(i => {
+        msg += `• ${i.desc}: ₹${(i.qty * i.rate).toLocaleString()}\n`;
+    });
+    msg += `*Construction Total: ₹${totals.constructionTotal.toLocaleString()}*\n\n`;
+
+    msg += `*2. ADDITIONAL EXPENSES:*\n`;
+    items.filter(i => i.type === 'extra').forEach(i => {
+        msg += `• ${i.desc}: Approx ₹${(i.qty * i.rate).toLocaleString()}\n`;
+    });
+    msg += `*Additional Total: ₹${totals.expenseTotal.toLocaleString()}*\n\n`;
+
+    msg += `*✅ GRAND TOTAL: ₹${totals.grandTotal.toLocaleString()}*\n\n`;
+
+    msg += `*3. MAJOR MATERIALS (Ref Logic):*\n`;
+    msg += `• Cement: ${Math.round(builtArea * 0.42)} Bags\n`;
+    msg += `• Steel: ${Math.round(builtArea * 4.0)} Kgs\n`;
+    msg += `• Bricks: ${Math.round(builtArea * 22)} Nos\n\n`;
+
+    msg += `*NOTE:* GST extra. Borewell, EB, Plan approval not included in construction rate.\n`;
+
+    const encodedMsg = encodeURIComponent(msg);
+    window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
+  };
+
   const generatePDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    // PDF HEADER: Dynamic name inclusion
     doc.text(`QUOTATION FOR ${clientName.toUpperCase()}`, 105, 15, { align: 'center' });
     
     doc.setFontSize(10);
@@ -143,7 +173,6 @@ export default function MasterProfessionalBOQ() {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        {/* WEBSITE TITLE: FIXED AS REQUESTED */}
         <h2 style={{ margin: 0, fontSize: '22px', letterSpacing: '1px' }}>QUOTATION</h2>
         <button onClick={() => setItems([...items, { id: Date.now(), desc: "New Work Spec", qty: 1, rate: 0, unit: "Nos", type: 'const' }])} style={addBtn}>+ ADD ITEM</button>
       </div>
@@ -179,15 +208,15 @@ export default function MasterProfessionalBOQ() {
       <div style={floatingFooter}>
         <div style={footerMain}>
           <div><div style={miniLabel}>TOTAL QUOTATION</div><div style={totalVal}>₹ {totals.grandTotal.toLocaleString()}</div></div>
-          <button onClick={() => window.open(`https://wa.me/?text=Quotation for ${clientName}: ₹${totals.grandTotal.toLocaleString()}`)} style={waBtn}>SHARE</button>
+          <button onClick={shareWhatsApp} style={waBtn}>SHARE WHATSAPP</button>
         </div>
-        <button onClick={generatePDF} style={pdfBtn}>DOWNLOAD QUOTATION REPORT 📄</button>
+        <button onClick={generatePDF} style={pdfBtn}>DOWNLOAD PDF REPORT 📄</button>
       </div>
     </div>
   );
 }
 
-// --- STYLING ---
+// --- CSS STYLING ---
 const containerStyle = { maxWidth: '500px', margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: '160px', fontFamily: 'sans-serif' };
 const headerStyle = { background: '#0f172a', color: 'white', padding: '30px 15px', textAlign: 'center' as const };
 const cardStyle = { background: 'white', margin: '-20px 15px 15px 15px', padding: '15px', borderRadius: '15px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', position: 'relative' as const, zIndex: 10 };
