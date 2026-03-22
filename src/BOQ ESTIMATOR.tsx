@@ -2,148 +2,182 @@ import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// --- DATA FROM IMAGES 1-8 ---
-const INITIAL_MARKET_RATES = {
-  cement: { "Ramco": 410, "Chettinad": 405, "UltraTech": 425 },
-  steel: { "Pulkit": 75, "JSW": 78, "TATA Tiscon": 82 },
-  tiles: { "KAG": 55, "Millenium": 60, "Somany": 75 },
-  sand: 4000, bricks: 8.5, granite: 130
+// --- 1. DATA HUB: EXTRACTED FROM ALL 8 IMAGES ---
+const MARKET_DATABASE = {
+  cement: { "Ramco Super Plast": 410, "Chettinad": 405, "UltraTech": 425, "Dalmia": 415 },
+  steel: { "Pulkit (Fe 550D)": 75, "JSW Neosteel": 78, "TATA Tiscon": 82 },
+  tiles: { "Vitrified (4x2)": 55, "KAG GVT": 65, "Cool Roof Tile": 45 },
+  wood: { "Teak Wood (Main)": 4500, "Flush Door": 1800, "PVC Door": 950 }
 };
 
-export default function MasterConstructionERP() {
-  const [clientName, setClientName] = useState("Mr. Rajendran");
-  const [builtArea, setBuiltArea] = useState(1300);
-  const [selectedSteel, setSelectedSteel] = useState("Pulkit");
-  const [selectedCement, setSelectedCement] = useState("Ramco");
-  
-  // Custom Items State (Allows Adding/Deleting from Images 1 & 2)
+export default function MasterBOQEstimator() {
+  // --- 2. STATE MANAGEMENT ---
+  const [clientInfo, setClientInfo] = useState({ name: "Mr. Rajendran", location: "Musiri, Trichy", area: 1300 });
+  const [selectedSteel, setSelectedSteel] = useState("Pulkit (Fe 550D)");
+  const [selectedCement, setSelectedCement] = useState("Ramco Super Plast");
+
+  // Dynamic Item List (Fully Editable - Content from Images 1 to 8)
   const [items, setItems] = useState([
-    { id: 1, desc: "Ground Floor Construction", qty: 1300, rate: 2250, unit: "Sft", type: "main" },
-    { id: 2, desc: "UG Septic Tank (6000L)", qty: 6000, rate: 15, unit: "Ltr", type: "utility" },
-    { id: 3, desc: "UG Sump (4000L)", qty: 4000, rate: 15, unit: "Ltr", type: "utility" },
-    { id: 4, desc: "Borewell with 1HP Jet Pump", qty: 1, rate: 80000, unit: "Nos", type: "expense" },
-    { id: 5, desc: "3 Phase EB Connection", qty: 1, rate: 100000, unit: "Nos", type: "expense" },
-    { id: 6, desc: "Plan Approval Fee", qty: 1, rate: 75000, unit: "Nos", type: "expense" }
+    { id: 1, group: "Civil", desc: "Ground Floor Construction (Framed)", qty: 1300, rate: 2250, unit: "Sft" },
+    { id: 2, group: "Utility", desc: "UG Septic Tank (6000 Ltrs)", qty: 6000, rate: 15, unit: "Ltr" },
+    { id: 3, group: "Utility", desc: "UG Sump (4000 Ltrs) with 1HP Motor", qty: 4000, rate: 15, unit: "Ltr" },
+    { id: 4, group: "Expenses", desc: "Borewell with 1HP Jet Pump", qty: 1, rate: 80000, unit: "Nos" },
+    { id: 5, group: "Expenses", desc: "3 Phase EB Connection & Temporary EB", qty: 1, rate: 100000, unit: "Nos" },
+    { id: 6, group: "Expenses", desc: "Plan Approval & Blueprint Fee", qty: 1, rate: 75000, unit: "Nos" },
+    { id: 7, group: "Add-ons", desc: "Compound Wall (25+55=80ft)", qty: 80, rate: 2500, unit: "Rft" },
+    { id: 8, group: "Add-ons", desc: "Terrace White Cool Roof Tile", qty: 1, rate: 125000, unit: "LS" },
+    { id: 9, group: "Add-ons", desc: "Property Tax & UGD Connection", qty: 1, rate: 90000, unit: "LS" }
   ]);
 
-  // --- CALCULATION LOGIC ---
-  const calculation = useMemo(() => {
-    // Material Quantities based on Built Area
-    const cementQty = builtArea * 0.42;
-    const steelQty = builtArea * 4.0;
+  // --- 3. LOGIC ENGINE ---
+  const totals = useMemo(() => {
+    const area = clientInfo.area;
+    // Structural Coefficients (Image 5 & 8)
+    const cementBags = Math.round(area * 0.42);
+    const steelKgs = Math.round(area * 4.0);
     
-    const materialCost = (cementQty * INITIAL_MARKET_RATES.cement[selectedCement]) + 
-                         (steelQty * INITIAL_MARKET_RATES.steel[selectedSteel]);
-    
-    const itemsTotal = items.reduce((sum, item) => sum + (item.qty * item.rate), 0);
-    const grandTotal = itemsTotal + materialCost;
+    const itemsTotal = items.reduce((sum, i) => sum + (i.qty * i.rate), 0);
+    // Material rates are already baked into the Sft rate in Image 1, 
+    // but we display them for transparency.
+    return { cementBags, steelKgs, itemsTotal };
+  }, [items, clientInfo.area]);
 
-    return { cementQty, steelQty, itemsTotal, materialCost, grandTotal };
-  }, [builtArea, selectedSteel, selectedCement, items]);
-
-  // --- ACTIONS ---
-  const deleteItem = (id) => setItems(items.filter(i => i.id !== id));
-  
-  const addItem = () => {
-    const newItem = { id: Date.now(), desc: "New Work Item", qty: 1, rate: 0, unit: "Nos", type: "custom" };
-    setItems([...items, newItem]);
+  // --- 4. ACTIONS ---
+  const updateItem = (id, field, val) => {
+    setItems(items.map(i => i.id === id ? { ...i, [field]: val } : i));
   };
 
+  const deleteItem = (id) => setItems(items.filter(i => i.id !== id));
+  const addNewItem = () => setItems([...items, { id: Date.now(), group: "Custom", desc: "New Specification", qty: 1, rate: 0, unit: "Nos" }]);
+
+  // --- 5. REPORT GENERATION (IMAGE 6 STYLE) ---
   const generatePDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text("UNIQ DESIGNS - MASTER QUOTATION", 105, 15, { align: 'center' });
+    doc.setTextColor(184, 134, 11); // Gold
+    doc.text("BOQ ESTIMATOR - MASTER QUOTATION", 105, 15, { align: 'center' });
     
-    const tableData = items.map(i => [i.desc, `${i.qty} ${i.unit}`, `Rs.${i.rate}`, `Rs.${(i.qty * i.rate).toLocaleString()}`]);
-    tableData.push(["Cement (" + selectedCement + ")", `${calculation.cementQty.toFixed(0)} Bags`, "Market", "Included"]);
-    tableData.push(["Steel (" + selectedSteel + ")", `${calculation.steelQty.toFixed(0)} Kgs`, "Market", "Included"]);
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text(`Client: ${clientInfo.name} | Site: ${clientInfo.location}`, 14, 25);
+    doc.text(`Built-up Area: ${clientInfo.area} Sft | Date: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    const body = items.map(i => [i.desc, `${i.qty} ${i.unit}`, `Rs.${i.rate}`, `Rs.${(i.qty * i.rate).toLocaleString()}`]);
+    body.push([{ content: 'MATERIAL BREAKDOWN (For Information Only)', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245] } }]);
+    body.push([`Cement: ${selectedCement}`, `${totals.cementBags} Bags`, "Market", "Included"]);
+    body.push([`Steel: ${selectedSteel}`, `${totals.steelKgs} Kgs`, "Market", "Included"]);
 
     autoTable(doc, {
-      startY: 25,
-      head: [['Description', 'Quantity', 'Rate', 'Total']],
-      body: tableData,
-      foot: [['', '', 'GRAND TOTAL', `Rs. ${calculation.grandTotal.toLocaleString()}`]],
+      startY: 35,
+      head: [['Description', 'Quantity', 'Rate', 'Total Cost']],
+      body: body,
+      foot: [['', '', 'GRAND TOTAL', `Rs. ${totals.itemsTotal.toLocaleString()}`]],
       theme: 'grid',
-      headStyles: { fillColor: [184, 134, 11] }
+      headStyles: { fillColor: [30, 41, 59] },
+      footStyles: { fillColor: [184, 134, 11], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
 
-    doc.save(`${clientName}_Quotation.pdf`);
+    doc.save(`${clientInfo.name}_BOQ.pdf`);
   };
 
   return (
     <div style={containerStyle}>
+      {/* MOBILE FRIENDLY HEADER */}
       <div style={headerStyle}>
-        <h2 style={{ margin: 0 }}>UNIQ DESIGNS ERP</h2>
-        <p style={{ fontSize: '10px' }}>Trichy Market Real-Time Estimator</p>
+        <h2 style={{ margin: 0 }}>BOQ ESTIMATOR</h2>
+        <div style={{ fontSize: '12px', opacity: 0.8 }}>Professional Construction Consultancy</div>
       </div>
 
-      {/* CUSTOMIZATION PANEL */}
+      {/* CLIENT & MATERIAL CONTROLS */}
       <div style={cardStyle}>
+        <div style={inputGroup}>
+          <label>Project Area (Sft)</label>
+          <input type="number" value={clientInfo.area} onChange={e => setClientInfo({...clientInfo, area: Number(e.target.value)})} style={inputStyle} />
+        </div>
         <div style={grid2}>
           <div>
-            <label style={labelStyle}>Select Steel Brand</label>
-            <select style={selectStyle} value={selectedSteel} onChange={(e) => setSelectedSteel(e.target.value)}>
-              {Object.keys(INITIAL_MARKET_RATES.steel).map(s => <option key={s} value={s}>{s} (₹{INITIAL_MARKET_RATES.steel[s]}/kg)</option>)}
+            <label style={miniLabel}>Steel Brand</label>
+            <select value={selectedSteel} onChange={e => setSelectedSteel(e.target.value)} style={selectStyle}>
+              {Object.keys(MARKET_DATABASE.steel).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Select Cement Brand</label>
-            <select style={selectStyle} value={selectedCement} onChange={(e) => setSelectedCement(e.target.value)}>
-              {Object.keys(INITIAL_MARKET_RATES.cement).map(c => <option key={c} value={c}>{c} (₹{INITIAL_MARKET_RATES.cement[c]}/bag)</option>)}
+            <label style={miniLabel}>Cement Brand</label>
+            <select value={selectedCement} onChange={e => setSelectedCement(e.target.value)} style={selectStyle}>
+              {Object.keys(MARKET_DATABASE.cement).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* DYNAMIC ITEM LIST (Images 1 & 2) */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <h4 style={{ margin: 0 }}>Work Specifications & Expenses</h4>
-          <button onClick={addItem} style={addBtn}>+ ADD ITEM</button>
+      {/* EDITABLE SPECIFICATION LIST (IMAGES 1-8 CONTENTS) */}
+      <div style={{ padding: '0 15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <h3 style={{ margin: 0, fontSize: '16px' }}>Work Specifications</h3>
+          <button onClick={addNewItem} style={addBtn}>+ Add Detail</button>
         </div>
-        {items.map((item) => (
-          <div key={item.id} style={itemRow}>
-            <input 
-              style={{ flex: 2, border: 'none', fontWeight: 'bold' }} 
-              value={item.desc} 
-              onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, desc: e.target.value} : i))}
-            />
-            <input 
-              style={{ width: '60px', textAlign: 'right', border: '1px solid #eee' }} 
-              type="number" 
-              value={item.rate} 
-              onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, rate: Number(e.target.value)} : i))}
-            />
-            <button onClick={() => deleteItem(item.id)} style={delBtn}>✕</button>
+
+        {items.map(item => (
+          <div key={item.id} style={itemCard}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <input 
+                style={itemDescInp} 
+                value={item.desc} 
+                onChange={e => updateItem(item.id, 'desc', e.target.value)} 
+              />
+              <button onClick={() => deleteItem(item.id)} style={delBtn}>✕</button>
+            </div>
+            <div style={itemInputs}>
+              <div style={{ flex: 1 }}>
+                <label style={miniLabel}>Qty ({item.unit})</label>
+                <input type="number" value={item.qty} onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} style={subInp} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={miniLabel}>Rate (₹)</label>
+                <input type="number" value={item.rate} onChange={e => updateItem(item.id, 'rate', Number(e.target.value))} style={subInp} />
+              </div>
+              <div style={itemTotalLine}>
+                ₹{(item.qty * item.rate).toLocaleString()}
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* SUMMARY FOOTER */}
-      <div style={footerStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-          <span>Grand Total Estimate:</span>
-          <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#B8860B' }}>₹ {calculation.grandTotal.toLocaleString()}</span>
+      {/* VISIBILITY FIXED: STICKY GRAND TOTAL FOOTER */}
+      <div style={stickyFooter}>
+        <div style={footerMain}>
+          <div style={{ fontSize: '12px', color: '#64748b' }}>GRAND TOTAL ESTIMATE</div>
+          <div style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>₹ {totals.itemsTotal.toLocaleString()}</div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <button onClick={generatePDF} style={mainBtn}>DOWNLOAD PDF</button>
-          <button onClick={() => window.open(`https://wa.me/?text=Quotation: ₹${calculation.grandTotal.toLocaleString()}`)} style={waBtn}>WHATSAPP</button>
+        <div style={actionGrid}>
+          <button onClick={generatePDF} style={pdfBtn}>GENERATE REPORT</button>
+          <button onClick={() => window.open(`https://wa.me/?text=BOQ Quote: ₹${totals.itemsTotal.toLocaleString()}`)} style={waBtn}>WHATSAPP</button>
         </div>
       </div>
     </div>
   );
 }
 
-// --- STYLING ---
-const containerStyle = { maxWidth: '500px', margin: '0 auto', background: '#f4f7f6', minHeight: '100vh', padding: '15px', paddingBottom: '150px', fontFamily: 'sans-serif' };
-const headerStyle = { background: '#1a1a1a', color: '#B8860B', padding: '20px', borderRadius: '15px', textAlign: 'center' as const, marginBottom: '15px' };
-const cardStyle = { background: 'white', padding: '15px', borderRadius: '15px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' };
-const grid2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' };
-const labelStyle = { fontSize: '11px', color: '#666', fontWeight: 'bold' as const };
-const selectStyle = { width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px' };
-const itemRow = { display: 'flex', gap: '10px', padding: '10px 0', borderBottom: '1px solid #f9f9f9', alignItems: 'center' };
-const addBtn = { background: '#B8860B', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' };
-const delBtn = { background: '#ff4d4d', color: 'white', border: 'none', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer' };
-const footerStyle = { position: 'fixed' as const, bottom: 0, width: '100%', maxWidth: '500px', background: 'white', padding: '20px', borderTop: '2px solid #B8860B', boxShadow: '0 -5px 10px rgba(0,0,0,0.05)' };
-const mainBtn = { padding: '15px', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold' as const, cursor: 'pointer' };
-const waBtn = { padding: '15px', background: '#25D366', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold' as const, cursor: 'pointer' };
+// --- STYLING (Optimized for all Phone Screens) ---
+const containerStyle = { maxWidth: '100%', minHeight: '100vh', background: '#f1f5f9', paddingBottom: '160px', fontFamily: '-apple-system, sans-serif' };
+const headerStyle = { background: '#0f172a', color: 'white', padding: '25px 15px', textAlign: 'center' as const };
+const cardStyle = { background: 'white', margin: '15px', padding: '15px', borderRadius: '15px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' };
+const grid2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' };
+const inputGroup = { display: 'flex', flexDirection: 'column' as const };
+const labelStyle = { fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '5px' };
+const inputStyle = { padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '16px' };
+const selectStyle = { width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f8fafc' };
+const miniLabel = { fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' as const };
+const itemCard = { background: 'white', padding: '12px', borderRadius: '12px', marginBottom: '10px', border: '1px solid #e2e8f0' };
+const itemDescInp = { flex: 1, border: 'none', fontWeight: 'bold' as const, fontSize: '14px', marginBottom: '8px', color: '#1e293b', width: '90%' };
+const itemInputs = { display: 'flex', gap: '10px', alignItems: 'center' };
+const subInp = { width: '100%', border: '1px solid #f1f5f9', padding: '5px', borderRadius: '5px', background: '#f8fafc' };
+const itemTotalLine = { fontSize: '14px', fontWeight: '900', color: '#B8860B', minWidth: '80px', textAlign: 'right' as const };
+const addBtn = { background: '#0f172a', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '8px', fontSize: '12px' };
+const delBtn = { color: '#ef4444', background: 'none', border: 'none', fontSize: '18px' };
+const stickyFooter = { position: 'fixed' as const, bottom: 0, width: '100%', background: 'white', padding: '15px', borderTop: '2px solid #0f172a', boxShadow: '0 -10px 20px rgba(0,0,0,0.05)', zIndex: 100 };
+const footerMain = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' };
+const actionGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' };
+const pdfBtn = { background: '#0f172a', color: 'white', border: 'none', padding: '14px', borderRadius: '12px', fontWeight: 'bold' as const, fontSize: '13px' };
+const waBtn = { background: '#22c55e', color: 'white', border: 'none', padding: '14px', borderRadius: '12px', fontWeight: 'bold' as const, fontSize: '13px' };
