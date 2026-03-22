@@ -5,8 +5,7 @@ import autoTable from 'jspdf-autotable';
 // --- 1. DATA HUB: LOGIC & SPECS ---
 const ENG_LOGIC = { cement: 0.42, steel: 4.0, sand: 1.8, aggregate: 1.35, bricks: 22, paint: 0.25, tiles: 1.1 };
 
-// FULL CONSOLIDATED DATABASE (29 ITEMS FROM IMAGE)
-const FULL_MATERIAL_DATABASE = [
+const IMAGE_MATERIAL_LIST = [
   { item: "Sand", spec: "M-Sand & P-Sand", unit: "Cft", constant: ENG_LOGIC.sand },
   { item: "Brick", spec: "Chamber brick / Fly-Ash Brick (for Basement)", unit: "Nos", constant: ENG_LOGIC.bricks },
   { item: "Cement", spec: "Chettinad / Ramco Super Plast / UltraTech", unit: "Bags", constant: ENG_LOGIC.cement },
@@ -48,7 +47,6 @@ const QUOTATION_NOTES = [
 
 interface BOQItem { id: number; desc: string; qty: number; rate: number; unit: string; type: 'const' | 'extra'; }
 
-// --- 2. THE LAG-FIXER INPUT ---
 const FastInput = ({ value, onSave, type = "text", style, placeholder }: any) => {
   const [local, setLocal] = useState(value);
   useEffect(() => { setLocal(value); }, [value]);
@@ -91,14 +89,13 @@ export default function MasterProfessionalBOQ() {
   const generatePDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    // Dynamic Header
-    doc.text(`QUOTATION For ${clientName}`, 105, 15, { align: 'center' });
+    // PDF HEADER STRICTLY "QUOTATION FOR"
+    doc.text(`QUOTATION FOR ${clientName.toUpperCase()}`, 105, 15, { align: 'center' });
     
     doc.setFontSize(10);
     doc.text(`Location: ${location} | Date: ${projectDate}`, 14, 25);
     doc.text(`Material Reference Area: ${builtArea} Sft`, 14, 30);
 
-    // TABLE 1: CONSTRUCTION COST
     autoTable(doc, {
       startY: 35,
       head: [['Description', 'Quantity', 'Rate', 'Amount']],
@@ -107,7 +104,6 @@ export default function MasterProfessionalBOQ() {
       theme: 'grid', headStyles: { fillColor: [15, 23, 42] }
     });
 
-    // TABLE 2: NECESSARY EXPENSES
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
       head: [['Necessary & Additional Expenses', 'Quantity', 'Rate', 'Amount']],
@@ -116,14 +112,12 @@ export default function MasterProfessionalBOQ() {
       theme: 'grid', headStyles: { fillColor: [100, 100, 100] }
     });
 
-    // GRAND TOTAL SECTION
     const grandTotalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(14);
     doc.setTextColor(22, 163, 74);
     doc.text(`GRAND TOTAL ESTIMATED VALUE: Rs. ${totals.grandTotal.toLocaleString()}`, 14, grandTotalY);
 
-    // TABLE 3: FULL 29 MATERIAL CONSUMPTION
-    const matRows = FULL_MATERIAL_DATABASE.map(m => [
+    const matRows = IMAGE_MATERIAL_LIST.map(m => [
       m.item, m.spec, m.constant > 0 ? `${Math.round(builtArea * m.constant)} ${m.unit}` : "As Required", "Included"
     ]);
 
@@ -134,7 +128,6 @@ export default function MasterProfessionalBOQ() {
       theme: 'striped', headStyles: { fillColor: [184, 134, 11] }
     });
 
-    // SECTION 4: PROFESSIONAL NOTES
     const noteY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(9);
     doc.setTextColor(0);
@@ -149,8 +142,9 @@ export default function MasterProfessionalBOQ() {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
+        {/* WEBSITE HEADER: QUOTATION For [Name] */}
         <h2 style={{ margin: 0, fontSize: '18px' }}>QUOTATION For {clientName}</h2>
-        <button onClick={() => setItems([...items, { id: Date.now(), desc: "New Work Spec", qty: 1, rate: 0, unit: "Nos", type: 'const' }])} style={addBtn}>+ ADD ITEM</button>
+        <button onClick={() => setItems([...items, { id: Date.now(), desc: "New Item", qty: 1, rate: 0, unit: "Nos", type: 'const' }])} style={addBtn}>+ ADD ITEM</button>
       </div>
 
       <div style={cardStyle}>
@@ -159,16 +153,13 @@ export default function MasterProfessionalBOQ() {
           <div style={f1}><label style={miniLabel}>DATE</label><input type="date" value={projectDate} onChange={(e:any) => setProjectDate(e.target.value)} style={detailInp} /></div>
         </div>
         <div style={{ marginTop: '10px' }}><label style={miniLabel}>LOCATION</label><FastInput value={location} onSave={setLocation} style={detailInp} /></div>
-        
         <div style={refAreaBox}>
           <label style={labelStyle}>MATERIAL REFERENCE AREA (Sq.Ft)</label>
           <FastInput type="number" value={builtArea} onSave={setBuiltArea} style={areaInput} />
-          <p style={infoText}>*This area drives the automated Material Consumption Table in the final report.</p>
         </div>
       </div>
 
       <div style={scrollArea}>
-        <h3 style={{ fontSize: '14px', padding: '10px 5px', margin: 0 }}>Work Specifications & Expenses</h3>
         {items.map(item => (
           <div key={item.id} style={itemCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -195,17 +186,16 @@ export default function MasterProfessionalBOQ() {
   );
 }
 
-// --- STYLING ---
+// --- CSS STYLING ---
 const containerStyle = { maxWidth: '500px', margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: '160px', fontFamily: 'sans-serif' };
 const headerStyle = { background: '#0f172a', color: 'white', padding: '25px 15px', textAlign: 'center' as const };
 const cardStyle = { background: 'white', margin: '-20px 15px 15px 15px', padding: '15px', borderRadius: '15px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', position: 'relative' as const, zIndex: 10 };
-const refAreaBox = { marginTop: '15px', padding: '10px', background: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd' };
-const infoText = { fontSize: '10px', color: '#0369a1', margin: '5px 0 0 0', lineHeight: '1.4' };
+const refAreaBox = { marginTop: '10px', padding: '10px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' };
 const grid2 = { display: 'flex', gap: '8px' };
 const f1 = { flex: 1 };
 const detailInp = { width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px', outline: 'none', boxSizing: 'border-box' as const };
 const areaInput = { width: '100%', padding: '10px', border: '2px solid #0369a1', borderRadius: '8px', fontSize: '20px', fontWeight: 'bold' as const, textAlign: 'center' as const };
-const labelStyle = { fontSize: '11px', color: '#64748b', fontWeight: 'bold' as const, display: 'block', marginBottom: '5px', textAlign: 'center' as const };
+const labelStyle = { fontSize: '10px', color: '#64748b', fontWeight: 'bold' as const, display: 'block', marginBottom: '4px', textAlign: 'center' as const };
 const miniLabel = { fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' as const, textTransform: 'uppercase' as const };
 const scrollArea = { padding: '0 15px' };
 const itemCard = { background: 'white', padding: '15px', borderRadius: '12px', marginBottom: '10px', border: '1px solid #e2e8f0' };
