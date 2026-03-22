@@ -2,13 +2,9 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// --- 1. ENGINEERING LOGIC DATABASE (Transparency for Clients) ---
+// --- 1. ENGINEERING LOGIC DATABASE ---
 const ENG_LOGIC = {
-  cement: 0.42, // Bags per Sqft
-  steel: 4.0,   // Kg per Sqft
-  sand: 1.8,    // Cft per Sqft
-  aggregate: 1.35, // Cft per Sqft
-  bricks: 22,   // Nos per Sqft
+  cement: 0.42, steel: 4.0, sand: 1.8, aggregate: 1.35, bricks: 22,
 };
 
 const SPECS_DB = {
@@ -20,22 +16,15 @@ const SPECS_DB = {
 };
 
 interface BOQItem {
-  id: number;
-  cat: string;
-  desc: string;
-  qty: number;
-  rate: number;
-  unit: string;
+  id: number; cat: string; desc: string; qty: number; rate: number; unit: string;
 }
 
-// --- 2. DEBOUNCED INPUT COMPONENT (Fixes Backspace/Typing Lag) ---
-const EditableInput = ({ value, onSave, type = "text", style }: any) => {
+// --- 2. DEBOUNCED INPUT COMPONENT (Fixes Lag & Backspace Error) ---
+const EditableInput = ({ value, onSave, type = "text", style, placeholder }: any) => {
   const [localVal, setLocalVal] = useState(value);
-
   useEffect(() => { setLocalVal(value); }, [value]);
-
   const handleChange = (e: any) => setLocalVal(e.target.value);
-  const handleBlur = () => onSave(localVal); // Only updates master state when user stops typing
+  const handleBlur = () => onSave(localVal);
 
   return (
     <input 
@@ -44,6 +33,7 @@ const EditableInput = ({ value, onSave, type = "text", style }: any) => {
       onChange={handleChange} 
       onBlur={handleBlur} 
       style={style} 
+      placeholder={placeholder}
     />
   );
 };
@@ -51,6 +41,8 @@ const EditableInput = ({ value, onSave, type = "text", style }: any) => {
 export default function MasterBOQEstimator() {
   const [builtArea, setBuiltArea] = useState<number>(1500);
   const [clientName, setClientName] = useState("Mr. Rajendran");
+  const [location, setLocation] = useState("Musiri, Trichy");
+  const [projectDate, setProjectDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [items, setItems] = useState<BOQItem[]>([
     { id: 1, cat: "Civil", desc: "Ground Floor Construction (Framed)", qty: 1500, rate: 2300, unit: "Sft" },
@@ -64,13 +56,12 @@ export default function MasterBOQEstimator() {
   // --- 3. TRANSPARENCY CALCULATION ---
   const totals = useMemo(() => {
     const subTotal = items.reduce((sum, i) => sum + (i.qty * i.rate), 0);
-    const breakDown = {
+    return {
+      subTotal,
       cement: Math.round(builtArea * ENG_LOGIC.cement),
       steel: Math.round(builtArea * ENG_LOGIC.steel),
       bricks: Math.round(builtArea * ENG_LOGIC.bricks),
-      sand: Math.round(builtArea * ENG_LOGIC.sand)
     };
-    return { subTotal, ...breakDown };
   }, [items, builtArea]);
 
   const updateItem = useCallback((id: number, field: keyof BOQItem, val: any) => {
@@ -79,20 +70,28 @@ export default function MasterBOQEstimator() {
 
   const generatePDF = () => {
     const doc = new jsPDF();
-    doc.setFontSize(18);
+    doc.setFontSize(20);
+    doc.setTextColor(15, 23, 42);
     doc.text("MASTER BOQ REPORT", 105, 15, { align: 'center' });
     
+    // Client Header Info in PDF
+    doc.setFontSize(10);
+    doc.text(`Client Name: ${clientName}`, 14, 25);
+    doc.text(`Location: ${location}`, 14, 30);
+    doc.text(`Date: ${projectDate}`, 160, 25);
+    doc.text(`Built-up Area: ${builtArea} Sq.Ft`, 160, 30);
+
     const tableBody: any[] = items.filter(i => i.qty > 0).map(i => [
       i.desc, `${i.qty} ${i.unit}`, `Rs.${i.rate}`, `Rs.${(i.qty * i.rate).toLocaleString()}`
     ]);
 
     tableBody.push([{ content: 'ENGINEERING MATERIAL BREAKDOWN', colSpan: 4, styles: { halign: 'center', fillColor: [241, 245, 249], fontStyle: 'bold' } }]);
-    tableBody.push(["Cement Bags", `Req: ${totals.cement} Bags`, "Standard: 0.42/Sft", "Included"]);
-    tableBody.push(["Steel Weight", `Req: ${totals.steel} Kgs`, "Standard: 4.00/Sft", "Included"]);
-    tableBody.push(["Bricks Count", `Req: ${totals.bricks} Nos`, "Standard: 22/Sft", "Included"]);
+    tableBody.push(["Cement Bags", `${totals.cement} Bags`, "Logic: 0.42/Sft", "Included"]);
+    tableBody.push(["Steel Weight", `${totals.steel} Kgs`, "Logic: 4.00/Sft", "Included"]);
+    tableBody.push(["Bricks Count", `${totals.bricks} Nos`, "Logic: 22/Sft", "Included"]);
 
     autoTable(doc, {
-      startY: 25,
+      startY: 35,
       head: [['Description', 'Quantity', 'Rate', 'Total']],
       body: tableBody,
       foot: [['', '', 'GRAND TOTAL', `Rs. ${totals.subTotal.toLocaleString()}`]],
@@ -101,53 +100,53 @@ export default function MasterBOQEstimator() {
       footStyles: { fillColor: [22, 163, 74] }
     });
 
-    doc.save(`${clientName}_BOQ.pdf`);
+    doc.save(`${clientName}_Report.pdf`);
   };
 
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
         <h2 style={{ margin: 0 }}>BOQ MASTER</h2>
-        <p style={{ fontSize: '11px' }}>Transparent Engineering Estimator</p>
+        <p style={{ fontSize: '11px' }}>Uniq Designs • Structural & Costing</p>
       </div>
 
+      {/* PROJECT DETAILS (Controllable) */}
       <div style={areaCard}>
-        <label style={labelStyle}>Project Built-up Area (Sq.Ft)</label>
-        <EditableInput 
-          type="number" 
-          value={builtArea} 
-          onSave={(val: any) => setBuiltArea(Number(val))} 
-          style={areaInput} 
-        />
+        <div style={detailGrid}>
+          <div style={{ flex: 1 }}>
+            <label style={miniLabel}>Client Name</label>
+            <EditableInput value={clientName} onSave={setClientName} style={detailInp} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={miniLabel}>Date</label>
+            <input type="date" value={projectDate} onChange={(e) => setProjectDate(e.target.value)} style={detailInp} />
+          </div>
+        </div>
+        <div style={{ marginTop: '10px' }}>
+          <label style={miniLabel}>Project Location</label>
+          <EditableInput value={location} onSave={setLocation} style={detailInp} />
+        </div>
+        <div style={{ marginTop: '10px' }}>
+          <label style={labelStyle}>Project Built-up Area (Sq.Ft)</label>
+          <EditableInput type="number" value={builtArea} onSave={(val: any) => setBuiltArea(Number(val))} style={areaInput} />
+        </div>
       </div>
 
       <div style={scrollArea}>
         {items.map((item) => (
           <div key={item.id} style={itemCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <EditableInput 
-                value={item.desc} 
-                onSave={(val: any) => updateItem(item.id, 'desc', val)} 
-                style={itemTitle} 
-              />
+              <EditableInput value={item.desc} onSave={(val: any) => updateItem(item.id, 'desc', val)} style={itemTitle} />
               <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))} style={delBtn}>✕</button>
             </div>
             <div style={inputRow}>
-              <div style={{ flex: 1 }}>
-                <span style={miniLabel}>Qty ({item.unit})</span>
-                <EditableInput type="number" value={item.qty} style={smallInp} onSave={(val: any) => updateItem(item.id, 'qty', Number(val))} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={miniLabel}>Rate (₹)</span>
-                <EditableInput type="number" value={item.rate} style={smallInp} onSave={(val: any) => updateItem(item.id, 'rate', Number(val))} />
-              </div>
+              <div style={{ flex: 1 }}><span style={miniLabel}>Qty</span><EditableInput type="number" value={item.qty} style={smallInp} onSave={(val: any) => updateItem(item.id, 'qty', Number(val))} /></div>
+              <div style={{ flex: 1 }}><span style={miniLabel}>Rate</span><EditableInput type="number" value={item.rate} style={smallInp} onSave={(val: any) => updateItem(item.id, 'rate', Number(val))} /></div>
               <div style={rowTotal}>₹{(item.qty * item.rate).toLocaleString()}</div>
             </div>
-            
-            {/* Engineering Transparency Section */}
             {item.unit === "Sft" && item.qty > 0 && (
               <div style={transparencyBox}>
-                🛠️ Logic: {totals.cement} Bags Cement | {totals.steel} Kg Steel | {totals.bricks} Bricks
+                🛠️ Engineering Logic: {totals.cement} Cement Bags | {totals.steel} Kg Steel
               </div>
             )}
           </div>
@@ -156,11 +155,8 @@ export default function MasterBOQEstimator() {
 
       <div style={floatingFooter}>
         <div style={footerText}>
-          <div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>TOTAL ESTIMATE</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>₹ {totals.subTotal.toLocaleString()}</div>
-          </div>
-          <button onClick={() => window.open(`https://wa.me/?text=BOQ Quote: ₹${totals.subTotal.toLocaleString()}`)} style={waBtn}>WHATSAPP</button>
+          <div><div style={{ fontSize: '11px', color: '#64748b' }}>TOTAL ESTIMATE</div><div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>₹ {totals.subTotal.toLocaleString()}</div></div>
+          <button onClick={() => window.open(`https://wa.me/?text=BOQ Quote for ${clientName}: ₹${totals.subTotal.toLocaleString()}`)} style={waBtn}>WHATSAPP</button>
         </div>
         <button onClick={generatePDF} style={pdfBtn}>DOWNLOAD MASTER REPORT 📄</button>
       </div>
@@ -168,18 +164,20 @@ export default function MasterBOQEstimator() {
   );
 }
 
-// --- CSS-IN-JS FOR SEAMLESS PERFORMANCE ---
+// --- CSS STYLING ---
 const containerStyle = { maxWidth: '100%', minHeight: '100vh', background: '#f8fafc', paddingBottom: '160px', fontFamily: 'sans-serif' };
 const headerStyle = { background: '#0f172a', color: 'white', padding: '30px 20px', textAlign: 'center' as const };
-const areaCard = { background: 'white', margin: '-20px 15px 15px 15px', padding: '20px', borderRadius: '15px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 10, position: 'relative' as const };
-const areaInput = { width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '20px', fontWeight: 'bold' as const, textAlign: 'center' as const };
-const labelStyle = { fontSize: '12px', color: '#64748b', fontWeight: 'bold' as const, marginBottom: '8px', display: 'block', textAlign: 'center' as const };
+const areaCard = { background: 'white', margin: '-20px 15px 15px 15px', padding: '15px', borderRadius: '15px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 10, position: 'relative' as const };
+const detailGrid = { display: 'flex', gap: '10px' };
+const detailInp = { width: '100%', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const };
+const areaInput = { width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '20px', fontWeight: 'bold' as const, textAlign: 'center' as const, boxSizing: 'border-box' as const };
+const labelStyle = { fontSize: '11px', color: '#64748b', fontWeight: 'bold' as const, marginBottom: '5px', display: 'block', textAlign: 'center' as const };
 const scrollArea = { padding: '0 10px' };
 const itemCard = { background: 'white', padding: '15px', borderRadius: '12px', marginBottom: '10px', border: '1px solid #e2e8f0' };
 const itemTitle = { border: 'none', fontWeight: 'bold' as const, fontSize: '14px', width: '90%', color: '#1e293b', outline: 'none' };
 const inputRow = { display: 'flex', gap: '10px', alignItems: 'flex-end', marginTop: '10px' };
 const miniLabel = { fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '2px' };
-const smallInp = { width: '100%', border: '1px solid #f1f5f9', padding: '8px', borderRadius: '8px', fontSize: '14px', background: '#f8fafc' };
+const smallInp = { width: '100%', border: '1px solid #f1f5f9', padding: '8px', borderRadius: '8px', fontSize: '14px', background: '#f8fafc', outline: 'none' };
 const rowTotal = { fontWeight: 'bold' as const, fontSize: '14px', color: '#334155', minWidth: '95px', textAlign: 'right' as const };
 const transparencyBox = { marginTop: '10px', padding: '8px', background: '#f0f9ff', borderRadius: '6px', fontSize: '11px', color: '#0369a1', border: '1px dashed #bae6fd' };
 const delBtn = { color: '#ef4444', background: 'none', border: 'none', fontSize: '18px' };
